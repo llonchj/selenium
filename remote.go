@@ -331,6 +331,23 @@ func (wd *remoteWD) NewSession() (string, error) {
 			return "", err
 		}
 
+		val := struct {
+			SessionID        string
+			PageLoadStrategy string
+			Proxy            Proxy
+			Timeouts         struct {
+				Implicit int
+				PageLoad int `json:"page load"`
+				Script   int
+			}
+		}{}
+
+		if err := json.Unmarshal(reply.Value, &val); err == nil && val.PageLoadStrategy != "" {
+			wd.w3cCompatible = true
+		}
+
+		// Geckodriver 0.15.0 returns an incorrectly restructured response.
+		// https://github.com/mozilla/geckodriver/issues/529
 		wd.id = *reply.SessionID
 
 		return wd.id, nil
@@ -371,18 +388,33 @@ func (wd *remoteWD) Capabilities() (Capabilities, error) {
 }
 
 func (wd *remoteWD) SetAsyncScriptTimeout(timeout time.Duration) error {
+	if wd.w3cCompatible {
+		return wd.voidCommand("/session/%s/timeouts", map[string]uint{
+			"script": uint(timeout / time.Millisecond),
+		})
+	}
 	return wd.voidCommand("/session/%s/timeouts/async_script", map[string]uint{
 		"ms": uint(timeout / time.Millisecond),
 	})
 }
 
 func (wd *remoteWD) SetImplicitWaitTimeout(timeout time.Duration) error {
+	if wd.w3cCompatible {
+		return wd.voidCommand("/session/%s/timeouts", map[string]uint{
+			"implicit": uint(timeout / time.Millisecond),
+		})
+	}
 	return wd.voidCommand("/session/%s/timeouts/implicit_wait", map[string]uint{
 		"ms": uint(timeout / time.Millisecond),
 	})
 }
 
 func (wd *remoteWD) SetPageLoadTimeout(timeout time.Duration) error {
+	if wd.w3cCompatible {
+		return wd.voidCommand("/session/%s/timeouts", map[string]uint{
+			"pageLoad": uint(timeout / time.Millisecond),
+		})
+	}
 	return wd.voidCommand("/session/%s/timeouts", map[string]interface{}{
 		"ms":   uint(timeout / time.Millisecond),
 		"type": "page load",

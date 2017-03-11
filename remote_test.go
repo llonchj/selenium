@@ -259,8 +259,8 @@ func testFirefoxPreferences(t *testing.T, c config) {
 		t.Skip("This test is known to fail for Selenium 2 and Firefox 47.")
 	}
 	caps := newTestCapabilities(t, c)
-	f := caps[firefox.CapabilitiesKey].(firefox.Capabilities)
-	if f.Prefs == nil {
+	f, ok := caps[firefox.CapabilitiesKey].(firefox.Capabilities)
+	if !ok || f.Prefs == nil {
 		f.Prefs = make(map[string]interface{})
 	}
 	f.Prefs["browser.startup.homepage"] = serverURL
@@ -468,11 +468,11 @@ func testStatus(t *testing.T, c config) {
 
 	status, err := wd.Status()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("wd.Status() returned error: %v", err)
 	}
 
-	if len(status.OS.Name) == 0 {
-		t.Fatal("No OS")
+	if len(status.OS.Name) == 0 && status.Message == "" {
+		t.Fatalf("OS.Name or Message not provided: %+v", status)
 	}
 }
 
@@ -531,12 +531,15 @@ func testExtendedErrorMessage(t *testing.T, c config) {
 }
 
 func testCapabilities(t *testing.T, c config) {
+	if c.browser == "firefox" && c.seleniumVersion.Major == 0 {
+		t.Skip("This method is not supported by Geckodriver.")
+	}
 	wd := newRemote(t, c)
 	defer quitRemote(t, wd)
 
 	caps, err := wd.Capabilities()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("wd.Capabilities() returned error: %v", err)
 	}
 
 	if strings.ToLower(caps["browserName"].(string)) != c.browser {
@@ -725,7 +728,7 @@ func testFindElement(t *testing.T, c config) {
 
 		we, ok := elem.(*remoteWE)
 		if !ok {
-			t.Errorf("wd.FindElement(%q, %q) = %T, want a *remoteWE", tc.by, tc.query)
+			t.Errorf("wd.FindElement(%q, %q) = %T, want a *remoteWE", tc.by, tc.query, elem)
 			continue
 		}
 
